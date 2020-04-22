@@ -71,7 +71,6 @@ func main() {
 		nfsPath       = kingpin.Flag("nfs.storage-path", "Path to nfs storage volume.").Default("/tmp/nfs").String()
 		nfsServer     = kingpin.Flag("nfs.server", "IP address to nfs storage cluster.").Default("127.0.0.1").String()
 	)
-
 	log.AddFlags(kingpin.CommandLine)
 	kingpin.Version(version.Print("nfs_exporter"))
 	kingpin.HelpFlag.Short('h')

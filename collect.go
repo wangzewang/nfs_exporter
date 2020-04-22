@@ -58,7 +58,7 @@ func execDfCommand(mountPath string) (*VolumeInfo, bool) {
 func execDuCommand(mountPath string) (*[]PathInfo, bool) {
 
 	var pathsInfo []PathInfo
-	cmd := "ls -l " + mountPath + "| awk '{print  \"" + mountPath + "/\"$9}' | xargs du -shk | awk '{print $1\"-\"$2}'"
+	cmd := "ls -l " + mountPath + "| awk '{print  \"" + mountPath + "/\"$9}' |  xargs -I {} du -shk \"{}\"| awk '{print $1\"-\"$2}'"
 	out, err := exec.Command("bash", "-c", cmd).Output()
 	if err != nil {
 		log.Errorf("du comand exec failed: %w", err)
