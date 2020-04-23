@@ -65,11 +65,12 @@ func init() {
 }
 
 func main() {
+
 	var (
 		metricsPath   = kingpin.Flag("web.telemetry-path", "Path under which to expose metrics.").Default("/metrics").String()
 		listenAddress = kingpin.Flag("web.listen-address", "Address on which to expose metrics and web interface.").Default(":9102").String()
-		nfsPath       = kingpin.Flag("nfs.storage-path", "Path to nfs storage volume.").Default("/tmp/nfs").String()
-		nfsServer     = kingpin.Flag("nfs.server", "IP address to nfs storage cluster.").Default("127.0.0.1").String()
+		nfsPath       = kingpin.Flag("nfs.storage-path", "Path to nfs storage volume.").Default(os.Getenv("NFS_PATH")).String()
+		nfsServer     = kingpin.Flag("nfs.server", "IP address to nfs storage cluster.").Default(os.Getenv("NFS_SERVER")).String()
 	)
 	log.AddFlags(kingpin.CommandLine)
 	kingpin.Version(version.Print("nfs_exporter"))
