@@ -7,6 +7,11 @@ import (
 	"strings"
 
 	"github.com/prometheus/common/log"
+
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 )
 
 type VolumeInfo struct {
@@ -17,8 +22,19 @@ type VolumeInfo struct {
 }
 
 type PathInfo struct {
-	path string
-	used float64
+	path    string
+	used    float64
+	pvName  string
+	storage float64
+}
+
+type NfsPvInfo struct {
+	server       string
+	path         string
+	capacity     string
+	pvName       string
+	pvcName      string
+	pvcNamespace string
 }
 
 func execDfCommand(mountPath string) (*VolumeInfo, bool) {
@@ -82,4 +98,43 @@ func execDuCommand(mountPath string) (*[]PathInfo, bool) {
 	}
 
 	return &pathsInfo, true
+}
+
+func getPvInfoFromCluster() map[string]map[string]NfsPvInfo {
+	// creates the in-cluster config
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		panic(err.Error())
+	}
+	// creates the clientset
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	pvClient := clientset.CoreV1().PersistentVolumes()
+	pvList, err := pvClient.List(metav1.ListOptions{})
+	if err != nil {
+		panic(err)
+	}
+
+	pvInfo := make(map[string]map[string]NfsPvInfo)
+
+	for _, pv := range pvList.Items {
+		if pv.Status.Phase != v1.VolumeBound {
+			continue
+		}
+		if pv.Spec.NFS != nil {
+			pvInfo[pv.Spec.NFS.Server][pv.Spec.NFS.Server+pv.Spec.NFS.Path] = NfsPvInfo{
+				server:       pv.Spec.NFS.Server,
+				path:         pv.Spec.NFS.Path,
+				capacity:     pv.Spec.Capacity.Storage().String(),
+				pvName:       pv.Name,
+				pvcName:      pv.Spec.ClaimRef.Name,
+				pvcNamespace: pv.Spec.ClaimRef.Namespace,
+			}
+		}
+	}
+
+	return pvInfo
 }

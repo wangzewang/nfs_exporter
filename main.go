@@ -3,6 +3,7 @@ package main
 import (
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -22,12 +23,13 @@ var (
 		"NFS capacity", []string{"server", "mount_path"}, nil)
 	volumeDataUsed = prometheus.NewDesc(prometheus.BuildFQName("", "", "nfs_volume_used_size"),
 		"NFS volume used size", []string{"server", "mount_path", "path"}, nil)
+	volumeDataUsedWithPv = prometheus.NewDesc(prometheus.BuildFQName("", "", "nfs_volume_used_size"),
+		"NFS volume used size", []string{"server", "mount_path", "path", "pv_name", "pvc_name", "pvc_namespace"}, nil)
 )
 
 // Exporter holds name, path and volumes to be monitored
 type Exporter struct {
-	nfsServer string
-	nfsPath   string
+	nfsServerPaths string
 }
 
 // Describe all the metrics exported by NFS exporter. It implements prometheus.Collector.
@@ -40,37 +42,43 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 
 // Collect collects all the metrics
 func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
-	volumeInfo, _ := execDfCommand(e.nfsPath)
-	volumeDataInfo, _ := execDuCommand(e.nfsPath)
-	ch <- prometheus.MustNewConstMetric(volumeSize, prometheus.GaugeValue, volumeInfo.size, e.nfsServer, e.nfsPath)
-	ch <- prometheus.MustNewConstMetric(volumeUsed, prometheus.GaugeValue, volumeInfo.used, e.nfsServer, e.nfsPath)
-	ch <- prometheus.MustNewConstMetric(volumeAvail, prometheus.GaugeValue, volumeInfo.avail, e.nfsServer, e.nfsPath)
-	ch <- prometheus.MustNewConstMetric(volumeCapacity, prometheus.GaugeValue, volumeInfo.capacity, e.nfsServer, e.nfsPath)
-	for _, v := range *volumeDataInfo {
-		ch <- prometheus.MustNewConstMetric(volumeDataUsed, prometheus.GaugeValue, v.used, e.nfsServer, e.nfsPath, v.path)
+	pvInfo := getPvInfoFromCluster()
+	for _, serverPath := range strings.Split(e.nfsServerPaths, ",") {
+		ip := strings.Split(serverPath, ":")[0]
+		path := strings.Split(serverPath, ":")[1]
+		volumeInfo, _ := execDfCommand(path)
+		volumeDataInfo, _ := execDuCommand(path)
+
+		ch <- prometheus.MustNewConstMetric(volumeSize, prometheus.GaugeValue, volumeInfo.size, ip, path)
+		ch <- prometheus.MustNewConstMetric(volumeUsed, prometheus.GaugeValue, volumeInfo.used, ip, path)
+		ch <- prometheus.MustNewConstMetric(volumeAvail, prometheus.GaugeValue, volumeInfo.avail, ip, path)
+		ch <- prometheus.MustNewConstMetric(volumeCapacity, prometheus.GaugeValue, volumeInfo.capacity, ip, path)
+		if val, exist := pvInfo[ip][ip+path]; exist {
+			for _, v := range *volumeDataInfo {
+				ch <- prometheus.MustNewConstMetric(volumeDataUsedWithPv, prometheus.GaugeValue, v.used, ip, path, v.path, val.pvName, val.pvcName, val.pvcNamespace)
+			}
+		} else {
+			for _, v := range *volumeDataInfo {
+				ch <- prometheus.MustNewConstMetric(volumeDataUsed, prometheus.GaugeValue, v.used, ip, path, v.path)
+			}
+
+		}
 
 	}
 }
 
 // NewExporter initialises exporter
-func NewExporter(nfsPath, nfsServer string) (*Exporter, error) {
+func NewExporter(nfsServerPaths string) (*Exporter, error) {
 	return &Exporter{
-		nfsServer: nfsServer,
-		nfsPath:   nfsPath,
+		nfsServerPaths: nfsServerPaths,
 	}, nil
 }
 
-func init() {
-	prometheus.MustRegister(version.NewCollector("nfs_exporter"))
-}
-
 func main() {
-
 	var (
-		metricsPath   = kingpin.Flag("web.telemetry-path", "Path under which to expose metrics.").Default("/metrics").String()
-		listenAddress = kingpin.Flag("web.listen-address", "Address on which to expose metrics and web interface.").Default(":9102").String()
-		nfsPath       = kingpin.Flag("nfs.storage-path", "Path to nfs storage volume.").Default(os.Getenv("NFS_PATH")).String()
-		nfsServer     = kingpin.Flag("nfs.server", "IP address to nfs storage cluster.").Default(os.Getenv("NFS_SERVER")).String()
+		metricsPath    = kingpin.Flag("web.telemetry-path", "Path under which to expose metrics.").Default("/metrics").String()
+		listenAddress  = kingpin.Flag("web.listen-address", "Address on which to expose metrics and web interface.").Default(":9102").String()
+		nfsServerPaths = kingpin.Flag("nfs.address", "Nfs servers ip with patha, split with comma. Example: 192.168.1.1:/data, 192.168.1.2:/data2").Default(os.Getenv("NFS_SERVER_PATHS")).String()
 	)
 	log.AddFlags(kingpin.CommandLine)
 	kingpin.Version(version.Print("nfs_exporter"))
@@ -80,7 +88,7 @@ func main() {
 	log.Infoln("Starting nfs_exporter", version.Info())
 	log.Infoln("Build context", version.BuildContext())
 
-	exporter, err := NewExporter(*nfsPath, *nfsServer)
+	exporter, err := NewExporter(*nfsServerPaths)
 	if err != nil {
 		log.Fatalf("Creating new Exporter went wrong, ... \n%v", err)
 	}
