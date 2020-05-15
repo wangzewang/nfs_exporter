@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nfs-exporter
+  namespace: nfs-storage
+  labels:
+    app: nfs-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nfs-exporter
+  template:
+    metadata:
+      labels:
+        app: nfs-exporter
+    spec:
+      containers:
+        - name: nfs-exporter
+          image: "nfs_exporter"
+          imagePullPolicy: Always
+          ports:
+            - name: http-9102
+              containerPort: 9102
+              protocol: TCP
+          command:
+          - bash
+          - -c
+          - /bin/nfs_exporter
+          env:
+          volumeMounts:
+          - mountPath: /tmp/nfs
+            name: nfs-server-path
+      volumes:
+      - name: nfs-server-path
+        persistentVolumeClaim:
+          claimName: nfs-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nfs-exporter
+  namespace: nfs-storage
+  labels:
+    app: nfs-exporter
+spec:
+  ports:
+    - port: 9102
+      targetPort: 9102
+      protocol: TCP
+      name: http-9102
+  selector:
+    app: nfs-exporter
+
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: nfs-pvc
+  namespace: nfs-storage
+  labels:
+    app: nfs-exporter
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes:
+    - "ReadWriteOnce"
+  nfs:
+    server: your_nfs_server_ip
+    path: "/nfs_path"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nfs-pvc
+  namespace: nfs-storage
+  labels:
+    app: nfs-exporter
+spec:
+  accessModes:
+    - "ReadWriteOnce"
+  resources:
+    requests:
+      storage: 10Gi

@@ -1,0 +1,19 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: nfs-metrics
+  namespace: monitoring
+  labels:
+    k8s-app: nfs-metrics
+spec:
+  selector:
+    matchLabels:
+      k8s-app: nfs-metrics
+  endpoints:
+  - port: http-metrics
+    scheme: http
+    interval: 60s
+    scrapeTimeout: 30s
+    honorLabels: true
+

@@ -1,0 +1,31 @@
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: nfs-metrics
+  namespace: monitoring
+  labels:
+    k8s-app: nfs-metrics
+subsets:
+- addresses:
+  - ip: 30.23.78.194  # ipaddress same as the url of gluster storageClass
+  ports:
+  - name: http-metrics
+    port: 31902 # port same as the url of gluster storageClass
+    protocol: TCP
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nfs-metrics # same as endpoint
+  namespace: monitoring
+  labels:
+    k8s-app: nfs-metrics  # same as endpoint
+spec:
+  ports:
+  - name: http-metrics
+    port: 8081               # the port for gluster-metrics on k8s
+    protocol: TCP
+    targetPort: 31902 # same as endpoint
+  type: ClusterIP
