@@ -37,7 +37,7 @@ type NfsPvInfo struct {
 	pvcNamespace string
 }
 
-func execDfCommand(mountPath string) (*VolumeInfo, bool) {
+func execDfCommand(mountPath string) VolumeInfo {
 
 	cmd := "df -k " + mountPath + " | grep dev | awk '{print $2\"-\"$3\"-\"$4\"-\"$5}'"
 	out, err := exec.Command("bash", "-c", cmd).Output()
@@ -63,15 +63,15 @@ func execDfCommand(mountPath string) (*VolumeInfo, bool) {
 		log.Errorf("convert capacity error: %w", err.Error)
 	}
 
-	return &VolumeInfo{
+	return VolumeInfo{
 		size:     size * 1024,
 		used:     used * 1024,
 		avail:    avail * 1024,
 		capacity: capacity,
-	}, true
+	}
 }
 
-func execDuCommand(mountPath string) (*[]PathInfo, bool) {
+func execDuCommand(mountPath string) []PathInfo {
 
 	var pathsInfo []PathInfo
 	cmd := "ls -l " + mountPath + "| awk '{print  \"" + mountPath + "/\"$9}' |  xargs -I {} du -shk \"{}\"| awk '{print $1\"@$@\"$2}'"
@@ -97,10 +97,11 @@ func execDuCommand(mountPath string) (*[]PathInfo, bool) {
 		}
 	}
 
-	return &pathsInfo, true
+	return pathsInfo
 }
 
 func getPvInfoFromCluster() map[string]map[string]NfsPvInfo {
+
 	// creates the in-cluster config
 	config, err := rest.InClusterConfig()
 	if err != nil {
@@ -128,7 +129,7 @@ func getPvInfoFromCluster() map[string]map[string]NfsPvInfo {
 			pvInfo[pv.Spec.NFS.Server][pv.Spec.NFS.Server+pv.Spec.NFS.Path] = NfsPvInfo{
 				server:       pv.Spec.NFS.Server,
 				path:         pv.Spec.NFS.Path,
-				capacity:     pv.Spec.Capacity.Storage().String(),
+				capacity:     pv.Spec.Capacity.StorageEphemeral().String(),
 				pvName:       pv.Name,
 				pvcName:      pv.Spec.ClaimRef.Name,
 				pvcNamespace: pv.Spec.ClaimRef.Namespace,

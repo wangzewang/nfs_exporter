@@ -4,7 +4,9 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
+	"github.com/patrickmn/go-cache"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/log"
@@ -24,7 +26,7 @@ var (
 	volumeDataUsed = prometheus.NewDesc(prometheus.BuildFQName("", "", "nfs_volume_used_size"),
 		"NFS volume used size", []string{"server", "mount_path", "path"}, nil)
 	volumeDataUsedWithPv = prometheus.NewDesc(prometheus.BuildFQName("", "", "nfs_volume_used_size"),
-		"NFS volume used size", []string{"server", "mount_path", "path", "pv_name", "pvc_name", "pvc_namespace"}, nil)
+		"NFS volume used size", []string{"server", "mount_path", "path", "pv_name", "pv_total_size", "pvc_name", "pvc_namespace"}, nil)
 )
 
 // Exporter holds name, path and volumes to be monitored
@@ -42,23 +44,33 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 
 // Collect collects all the metrics
 func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
-	pvInfo := getPvInfoFromCluster()
+	var pvInfo map[string]map[string]NfsPvInfo
+	if x, found := dataCache.Get("pvInfo"); found {
+		pvInfo = x.(map[string]map[string]NfsPvInfo)
+	}
+
 	for _, serverPath := range strings.Split(e.nfsServerPaths, ",") {
+		var volumeInfo VolumeInfo
+		var volumeDataInfo []PathInfo
+
 		ip := strings.Split(serverPath, ":")[0]
 		path := strings.Split(serverPath, ":")[1]
-		volumeInfo, _ := execDfCommand(path)
-		volumeDataInfo, _ := execDuCommand(path)
-
+		if x, found := dataCache.Get(ip + "volumeInfo"); found {
+			volumeInfo = x.(VolumeInfo)
+		}
+		if x, found := dataCache.Get(ip + "volumeDataInfo"); found {
+			volumeDataInfo = x.([]PathInfo)
+		}
 		ch <- prometheus.MustNewConstMetric(volumeSize, prometheus.GaugeValue, volumeInfo.size, ip, path)
 		ch <- prometheus.MustNewConstMetric(volumeUsed, prometheus.GaugeValue, volumeInfo.used, ip, path)
 		ch <- prometheus.MustNewConstMetric(volumeAvail, prometheus.GaugeValue, volumeInfo.avail, ip, path)
 		ch <- prometheus.MustNewConstMetric(volumeCapacity, prometheus.GaugeValue, volumeInfo.capacity, ip, path)
 		if val, exist := pvInfo[ip][ip+path]; exist {
-			for _, v := range *volumeDataInfo {
-				ch <- prometheus.MustNewConstMetric(volumeDataUsedWithPv, prometheus.GaugeValue, v.used, ip, path, v.path, val.pvName, val.pvcName, val.pvcNamespace)
+			for _, v := range volumeDataInfo {
+				ch <- prometheus.MustNewConstMetric(volumeDataUsedWithPv, prometheus.GaugeValue, v.used, ip, path, v.path, val.pvName, val.capacity, val.pvcName, val.pvcNamespace)
 			}
 		} else {
-			for _, v := range *volumeDataInfo {
+			for _, v := range volumeDataInfo {
 				ch <- prometheus.MustNewConstMetric(volumeDataUsed, prometheus.GaugeValue, v.used, ip, path, v.path)
 			}
 
@@ -74,6 +86,21 @@ func NewExporter(nfsServerPaths string) (*Exporter, error) {
 	}, nil
 }
 
+func collectData(nfsServerPaths string) {
+	for {
+		dataCache.Set("pvInfo", getPvInfoFromCluster(), cache.NoExpiration)
+		for _, serverPath := range strings.Split(nfsServerPaths, ",") {
+			ip := strings.Split(serverPath, ":")[0]
+			path := strings.Split(serverPath, ":")[1]
+			dataCache.Set(ip+"volumeInfo", execDfCommand(path), cache.NoExpiration)
+			dataCache.Set(ip+"volumeDataInfo", execDuCommand(path), cache.NoExpiration)
+		}
+		time.Sleep(5 * time.Minute)
+	}
+}
+
+var dataCache *cache.Cache
+
 func main() {
 	var (
 		metricsPath    = kingpin.Flag("web.telemetry-path", "Path under which to expose metrics.").Default("/metrics").String()
@@ -84,6 +111,9 @@ func main() {
 	kingpin.Version(version.Print("nfs_exporter"))
 	kingpin.HelpFlag.Short('h')
 	kingpin.Parse()
+	dataCache = cache.New(cache.NoExpiration, cache.NoExpiration)
+
+	go collectData(*nfsServerPaths)
 
 	log.Infoln("Starting nfs_exporter", version.Info())
 	log.Infoln("Build context", version.BuildContext())
