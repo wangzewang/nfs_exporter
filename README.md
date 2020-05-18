@@ -12,7 +12,8 @@ go build .
 
 docker build .
 
-# After change config in yaml folder
+# Push the docker image to your registry and change config in yaml folder
+# then deploy nfs exporter to kubernetes
 
 kubectl apply -f ./yaml
 ```
