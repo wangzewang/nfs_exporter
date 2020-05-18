@@ -6,7 +6,15 @@ NFS exporter for Prometheus
 ```
 go get -u -v github.com/wangzewang/nfs_exporter
 
-./${GOPATH}/bin/nfs_exporter --${flags} ...
+go vendor
+
+go build .
+
+docker build .
+
+# After change config in yaml folder
+
+kubectl apply -f ./yaml
 ```
 
 ## Usage of `nfs_exporter`
