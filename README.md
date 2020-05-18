@@ -6,7 +6,7 @@ NFS exporter for Prometheus
 ```
 go get -u -v github.com/wangzewang/nfs_exporter
 
-go vendor
+go mod vendor
 
 go build .
 
