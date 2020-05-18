@@ -39,8 +39,9 @@ type NfsPvInfo struct {
 
 func execDfCommand(mountPath string) VolumeInfo {
 
-	cmd := "df -k " + mountPath + " | grep dev | awk '{print $2\"-\"$3\"-\"$4\"-\"$5}'"
+	cmd := "df -k " + mountPath + " | grep -v Filesystem | awk '{print $2\"-\"$3\"-\"$4\"-\"$5}'"
 	out, err := exec.Command("bash", "-c", cmd).Output()
+
 	if err != nil {
 		log.Errorf("df comand exec failed: %w", err.Error)
 	}
@@ -62,7 +63,6 @@ func execDfCommand(mountPath string) VolumeInfo {
 	if err != nil {
 		log.Errorf("convert capacity error: %w", err.Error)
 	}
-
 	return VolumeInfo{
 		size:     size * 1024,
 		used:     used * 1024,
@@ -79,7 +79,6 @@ func execDuCommand(mountPath string) []PathInfo {
 	if err != nil {
 		log.Errorf("du comand exec failed: %w", err)
 	}
-
 	res := strings.Split(string(out), "\n")
 	log.Info(res)
 	for _, v := range res {
@@ -101,7 +100,6 @@ func execDuCommand(mountPath string) []PathInfo {
 }
 
 func getPvInfoFromCluster() map[string]map[string]NfsPvInfo {
-
 	// creates the in-cluster config
 	config, err := rest.InClusterConfig()
 	if err != nil {
@@ -112,13 +110,11 @@ func getPvInfoFromCluster() map[string]map[string]NfsPvInfo {
 	if err != nil {
 		panic(err.Error())
 	}
-
 	pvClient := clientset.CoreV1().PersistentVolumes()
 	pvList, err := pvClient.List(metav1.ListOptions{})
 	if err != nil {
 		panic(err)
 	}
-
 	pvInfo := make(map[string]map[string]NfsPvInfo)
 
 	for _, pv := range pvList.Items {
@@ -126,10 +122,17 @@ func getPvInfoFromCluster() map[string]map[string]NfsPvInfo {
 			continue
 		}
 		if pv.Spec.NFS != nil {
+			if pvInfo[pv.Spec.NFS.Server] == nil {
+				pvInfo[pv.Spec.NFS.Server] = make(map[string]NfsPvInfo)
+			}
+			storage, ok := pv.Spec.Capacity[v1.ResourceStorage]
+			if !ok {
+				log.Errorf("PersistentVolume %q is without a storage capacity", pv.Name)
+			}
 			pvInfo[pv.Spec.NFS.Server][pv.Spec.NFS.Server+pv.Spec.NFS.Path] = NfsPvInfo{
 				server:       pv.Spec.NFS.Server,
 				path:         pv.Spec.NFS.Path,
-				capacity:     pv.Spec.Capacity.StorageEphemeral().String(),
+				capacity:     strconv.FormatInt(storage.Value()/(1024*1024*1024), 10) + "Gi",
 				pvName:       pv.Name,
 				pvcName:      pv.Spec.ClaimRef.Name,
 				pvcNamespace: pv.Spec.ClaimRef.Namespace,

@@ -1,17 +1,16 @@
 package main
 
 import (
-	"net/http"
-	"os"
-	"strings"
-	"time"
-
 	"github.com/patrickmn/go-cache"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/version"
 	"gopkg.in/alecthomas/kingpin.v2"
+	"net/http"
+	"os"
+	"strings"
+	"time"
 )
 
 var (
@@ -65,15 +64,12 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 		ch <- prometheus.MustNewConstMetric(volumeUsed, prometheus.GaugeValue, volumeInfo.used, ip, path)
 		ch <- prometheus.MustNewConstMetric(volumeAvail, prometheus.GaugeValue, volumeInfo.avail, ip, path)
 		ch <- prometheus.MustNewConstMetric(volumeCapacity, prometheus.GaugeValue, volumeInfo.capacity, ip, path)
-		if val, exist := pvInfo[ip][ip+path]; exist {
-			for _, v := range volumeDataInfo {
-				ch <- prometheus.MustNewConstMetric(volumeDataUsedWithPv, prometheus.GaugeValue, v.used, ip, path, v.path, val.pvName, val.capacity, val.pvcName, val.pvcNamespace)
+		for _, val := range volumeDataInfo {
+			if v, exist := pvInfo[ip][ip+val.path]; exist {
+				ch <- prometheus.MustNewConstMetric(volumeDataUsedWithPv, prometheus.GaugeValue, val.used, ip, path, val.path, v.pvName, v.capacity, v.pvcName, v.pvcNamespace)
+			} else {
+				ch <- prometheus.MustNewConstMetric(volumeDataUsed, prometheus.GaugeValue, val.used, ip, path, val.path)
 			}
-		} else {
-			for _, v := range volumeDataInfo {
-				ch <- prometheus.MustNewConstMetric(volumeDataUsed, prometheus.GaugeValue, v.used, ip, path, v.path)
-			}
-
 		}
 
 	}
