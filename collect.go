@@ -31,7 +31,7 @@ type PathInfo struct {
 type NfsPvInfo struct {
 	server       string
 	path         string
-	capacity     string
+	capacity     float64
 	pvName       string
 	pvcName      string
 	pvcNamespace string
@@ -132,7 +132,7 @@ func getPvInfoFromCluster() map[string]map[string]NfsPvInfo {
 			pvInfo[pv.Spec.NFS.Server][pv.Spec.NFS.Server+pv.Spec.NFS.Path] = NfsPvInfo{
 				server:       pv.Spec.NFS.Server,
 				path:         pv.Spec.NFS.Path,
-				capacity:     strconv.FormatInt(storage.Value()/(1024*1024*1024), 10) + "Gi",
+				capacity:     float64(storage.Value() / (1024 * 1024)),
 				pvName:       pv.Name,
 				pvcName:      pv.Spec.ClaimRef.Name,
 				pvcNamespace: pv.Spec.ClaimRef.Namespace,

@@ -25,7 +25,9 @@ var (
 	volumeDataUsed = prometheus.NewDesc(prometheus.BuildFQName("", "", "nfs_volume_used_size"),
 		"NFS volume used size", []string{"server", "mount_path", "path"}, nil)
 	volumeDataUsedWithPv = prometheus.NewDesc(prometheus.BuildFQName("", "", "nfs_volume_used_size"),
-		"NFS volume used size", []string{"server", "mount_path", "path", "pv_name", "pv_total_size", "pvc_name", "pvc_namespace"}, nil)
+		"NFS volume used size", []string{"server", "mount_path", "path", "pv_name", "pvc_name", "pvc_namespace"}, nil)
+	volumeDataTotalWithPv = prometheus.NewDesc(prometheus.BuildFQName("", "", "nfs_volume_total_size"),
+		"NFS volume used size", []string{"server", "mount_path", "path", "pv_name", "pvc_name", "pvc_namespace"}, nil)
 )
 
 // Exporter holds name, path and volumes to be monitored
@@ -66,7 +68,8 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 		ch <- prometheus.MustNewConstMetric(volumeCapacity, prometheus.GaugeValue, volumeInfo.capacity, ip, path)
 		for _, val := range volumeDataInfo {
 			if v, exist := pvInfo[ip][ip+val.path]; exist {
-				ch <- prometheus.MustNewConstMetric(volumeDataUsedWithPv, prometheus.GaugeValue, val.used, ip, path, val.path, v.pvName, v.capacity, v.pvcName, v.pvcNamespace)
+				ch <- prometheus.MustNewConstMetric(volumeDataUsedWithPv, prometheus.GaugeValue, val.used, ip, path, val.path, v.pvName, v.pvcName, v.pvcNamespace)
+				ch <- prometheus.MustNewConstMetric(volumeDataTotalWithPv, prometheus.GaugeValue, v.capacity, ip, path, val.path, v.pvName, v.pvcName, v.pvcNamespace)
 			} else {
 				ch <- prometheus.MustNewConstMetric(volumeDataUsed, prometheus.GaugeValue, val.used, ip, path, val.path)
 			}
