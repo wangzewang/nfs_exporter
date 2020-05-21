@@ -1,8 +1,12 @@
-FROM golang:latest
+FROM alpine:latest
 
-COPY nfs_exporter /bin/
+RUN apk update \
+    && apk add -u coreutils bash\
+    && rm -rf /var/lib/apt/lists/*
 
-RUN chmod 775 /bin/nfs_exporter
+COPY nfs_exporter /bin
+
+RUN chmod +x /bin/nfs_exporter
 
 EXPOSE 9102
 

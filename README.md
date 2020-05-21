@@ -10,9 +10,9 @@ cd $GOPATH/src/github.com/wangzewang/nfs_exporter/
 
 go mod vendor
 
-go build .
+CGO_ENABLED=0 go build .
 
-docker build .
+docker build  --network=host .
 
 # Push the docker image to your registry and change config in yaml folder
 # then deploy nfs exporter to kubernetes
