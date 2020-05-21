@@ -4,7 +4,9 @@ NFS exporter for Prometheus
 ## Installation
 
 ```
-go get -u -v github.com/wangzewang/nfs_exporter
+git clone git@github.com:wangzewang/nfs_exporter.git $GOPATH/src/github.com/wangzewang/nfs_exporter
+
+cd $GOPATH/src/github.com/wangzewang/nfs_exporter/
 
 go mod vendor
 
