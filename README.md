@@ -4,7 +4,7 @@ NFS exporter for Prometheus
 ## Installation
 
 ```
-git clone git@github.com:wangzewang/nfs_exporter.git $GOPATH/src/github.com/wangzewang/nfs_exporter
+git clone https://github.com/wangzewang/nfs_exporter.git $GOPATH/src/github.com/wangzewang/nfs_exporter
 
 cd $GOPATH/src/github.com/wangzewang/nfs_exporter/
 
